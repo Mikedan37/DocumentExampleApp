@@ -1,4 +1,4 @@
-# 📄 documentExampleApp  
+# documentExampleApp  
 
 ### Advanced Document Architecture for SwiftUI Editors Using BlazeFSM and BlazeBinary
 
@@ -59,20 +59,15 @@ These components fully define the document.
 flowchart LR
 
     UI[SwiftUI Editor] --> VM[NotebookEditorViewModel]
-
-    VM --> ToolFSM
-
-    VM --> Router[Gesture / Event Router]
-
-    Router --> AnnotationFSM
-
-    AnnotationFSM --> Log[Transition Log]
-
-    Log --> Reducer[Reducer]
-
-    Reducer --> VM
-
-    VM --> UI
+    VM --> ToolFSM[ToolFSM]
+    VM --> AnnotationFSM[AnnotationFSM]
+    AnnotationFSM -->|onTransition callback| VM
+    VM -->|@Published annotations| UI
+    
+    style UI fill:#e1f5ff
+    style VM fill:#fff4e1
+    style ToolFSM fill:#e8f5e9
+    style AnnotationFSM fill:#e8f5e9
 
 ```
 
@@ -80,31 +75,42 @@ flowchart LR
 
 ## 4. Binary File Format (BlazeBinary Layout)
 
+The file format uses sequential BlazeBinary encoding with no magic header or version field. The format is defined by the encoding order of NotebookFileData fields.
+
 ```mermaid
 
 flowchart LR
 
-    A["Magic Bytes BNBK"] --> B["Version UInt8"]
-
-    B --> C["Metadata Block"]
-
-    C --> D["Transition Count UInt32"]
-
-    D --> E["Transition Stream AnnotationStateTransition[]"]
-
-    E --> F["Initial Tool State"]
+    A["Metadata Block"] --> B["Title String<br/>(varint length + UTF-8)"]
+    B --> C["CreatedAt UInt64<br/>(8 bytes, little-endian)"]
+    C --> D["UpdatedAt UInt64<br/>(8 bytes, little-endian)"]
+    D --> E["Transition Count<br/>(varint LEB128)"]
+    E --> F["Transition Stream<br/>(AnnotationStateTransition[])"]
+    F --> G["Initial Tool State<br/>(EditorToolState String rawValue)"]
+    
+    style A fill:#fff4e1
+    style B fill:#fff4e1
+    style C fill:#fff4e1
+    style D fill:#fff4e1
+    style E fill:#e8f5e9
+    style F fill:#e8f5e9
+    style G fill:#f3e5f5
 
 ```
 
 **Format Characteristics**
 
-- Deterministic sequential encoding
+- Deterministic sequential encoding (metadata → transitions → tool state)
 
-- No Codable or JSON
+- No Codable or JSON - pure BlazeBinary encoding
 
-- Forward-compatible through versioning
+- Arrays encoded as varint count prefix followed by elements
 
-- Efficient replay for restoration
+- Strings encoded as varint length prefix followed by UTF-8 bytes
+
+- Fixed-width integers use little-endian byte order
+
+- Efficient replay for restoration via transition log
 
 ---
 
@@ -114,27 +120,34 @@ flowchart LR
 
 stateDiagram-v2
 
-    idle --> selected: select
-
-    selected --> editing: beginEditing
-
-    editing --> committed: commitEdit
-
-    selected --> moving: beginMove
-
-    moving --> selected: endMove
-
-    selected --> resizing: beginResize
-
-    resizing --> selected: endResize
-
+    [*] --> idle: Initial state
+    
+    idle --> selected: select(annotationID)
+    idle --> creating: createAnnotation(payload)
+    
+    selected --> editing: beginEditing(annotationID)
+    selected --> moving: beginMove(annotationID)
+    selected --> resizing: beginResize(annotationID)
+    selected --> deleted: delete(annotationID)
+    selected --> idle: deselect(annotationID)
+    
+    editing --> committed: commitEdit(annotationID, payload)
+    editing --> selected: cancel (implicit)
+    
+    moving --> selected: endMove(annotationID)
+    
+    resizing --> selected: endResize(annotationID)
+    
     creating --> committed: finishCreate
-
-    [*] --> deleted: delete
+    
+    committed --> selected: select(annotationID)
+    committed --> deleted: delete(annotationID)
+    
+    deleted --> [*]: Terminal state
 
 ```
 
-Each annotation maintains an independent FSM instance.
+Each annotation maintains an independent FSM instance. The state machine validates all transitions and emits transition records for persistence.
 
 ---
 
@@ -144,35 +157,30 @@ Each annotation maintains an independent FSM instance.
 
 sequenceDiagram
 
-    participant View
+    participant View as SwiftUI View
+    participant ViewModel as NotebookEditorViewModel
+    participant ToolFSM as ToolFSM
+    participant AnnotationFSM as AnnotationFSM
 
-    participant ViewModel
-
-    participant ToolFSM
-
-    participant AnnotationFSM
-
-    participant TransitionLog
-
-    participant Reducer
-
-    View->>ViewModel: gesture(event)
-
-    ViewModel->>ToolFSM: interpret tool context
-
-    ToolFSM-->>ViewModel: AnnotationEvent?
-
-    ViewModel->>AnnotationFSM: processEvent()
-
-    AnnotationFSM-->>TransitionLog: append transition
-
-    TransitionLog-->>Reducer: apply transition
-
-    Reducer-->>ViewModel: updated annotations
-
-    ViewModel-->>View: rerender
+    View->>ViewModel: User gesture/input
+    ViewModel->>ToolFSM: Get current tool state
+    ToolFSM-->>ViewModel: Current tool
+    ViewModel->>AnnotationFSM: processEvent(AnnotationEvent)
+    AnnotationFSM->>AnnotationFSM: Validate transition
+    AnnotationFSM->>AnnotationFSM: Update state
+    AnnotationFSM-->>ViewModel: onTransition callback (AnnotationStateTransition)
+    ViewModel->>ViewModel: Accumulate transition
+    ViewModel->>ViewModel: Update @Published annotations
+    ViewModel-->>View: Trigger SwiftUI rerender
 
 ```
+
+**Flow Notes:**
+- ViewModel directly calls AnnotationFSM.processEvent() with events
+- AnnotationFSM emits transitions via onTransition callback
+- ViewModel accumulates transitions in internal array
+- ViewModel updates @Published properties which trigger SwiftUI rerender
+- No separate Reducer component - state updates happen directly in ViewModel
 
 ---
 
