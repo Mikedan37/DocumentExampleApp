@@ -61,8 +61,8 @@ flowchart LR
     UI[SwiftUI Editor] --> VM[NotebookEditorViewModel]
     VM --> ToolFSM[ToolFSM]
     VM --> AnnotationFSM[AnnotationFSM]
-    AnnotationFSM -->|onTransition callback| VM
-    VM -->|@Published annotations| UI
+    AnnotationFSM -.->|onTransition callback| VM
+    VM -.->|@Published annotations| UI
     
     style UI fill:#e1f5ff
     style VM fill:#fff4e1
