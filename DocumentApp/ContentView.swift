@@ -7,13 +7,16 @@
 
 import SwiftUI
 
+/// Example ContentView demonstrating DocumentGroup integration with NotebookDocument.
+/// Note: DocumentGroup should be used in the App's Scene, not in a View.
+/// This is a placeholder - move DocumentGroup to DocumentAppApp.swift
 struct ContentView: View {
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+            Text("Notebook Document Editor")
+                .font(.title)
+            Text("Use DocumentGroup in your App's Scene")
+                .foregroundColor(.secondary)
         }
         .padding()
     }

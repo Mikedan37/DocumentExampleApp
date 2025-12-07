@@ -10,8 +10,8 @@ import SwiftUI
 @main
 struct DocumentAppApp: App {
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        DocumentGroup(newDocument: NotebookDocument()) { configuration in
+            NotebookEditorView(document: configuration.$document)
         }
     }
 }

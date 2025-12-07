@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		902C0CC82EE51B39005102A6 /* BlazeFSM in Frameworks */ = {isa = PBXBuildFile; productRef = 902C0CC72EE51B39005102A6 /* BlazeFSM */; };
+		902C0CCB2EE51B59005102A6 /* BlazeBinary in Frameworks */ = {isa = PBXBuildFile; productRef = 902C0CCA2EE51B59005102A6 /* BlazeBinary */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		902C0C9B2EE51964005102A6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				902C0CCB2EE51B59005102A6 /* BlazeBinary in Frameworks */,
+				902C0CC82EE51B39005102A6 /* BlazeFSM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = DocumentApp;
 			packageProductDependencies = (
+				902C0CC72EE51B39005102A6 /* BlazeFSM */,
+				902C0CCA2EE51B59005102A6 /* BlazeBinary */,
 			);
 			productName = DocumentApp;
 			productReference = 902C0C8D2EE51963005102A6 /* DocumentApp.app */;
@@ -195,6 +204,10 @@
 			);
 			mainGroup = 902C0C842EE51963005102A6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				902C0CC62EE51B39005102A6 /* XCLocalSwiftPackageReference "../BlazeFSM" */,
+				902C0CC92EE51B59005102A6 /* XCLocalSwiftPackageReference "../BlazeBinary" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 902C0C8E2EE51963005102A6 /* Products */;
 			projectDirPath = "";
@@ -330,6 +343,7 @@
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xfrontend -warn-long-function-bodies=0";
 			};
 			name = Debug;
 		};
@@ -386,6 +400,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xfrontend -warn-long-function-bodies=0";
 			};
 			name = Release;
 		};
@@ -573,6 +588,28 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		902C0CC62EE51B39005102A6 /* XCLocalSwiftPackageReference "../BlazeFSM" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../BlazeFSM;
+		};
+		902C0CC92EE51B59005102A6 /* XCLocalSwiftPackageReference "../BlazeBinary" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../BlazeBinary;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		902C0CC72EE51B39005102A6 /* BlazeFSM */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BlazeFSM;
+		};
+		902C0CCA2EE51B59005102A6 /* BlazeBinary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BlazeBinary;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 902C0C852EE51963005102A6 /* Project object */;
 }
