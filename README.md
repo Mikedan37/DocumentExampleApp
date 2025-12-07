@@ -71,6 +71,10 @@ flowchart LR
 
 ```
 
+**Architecture Flow:**
+- Solid arrows indicate direct method calls
+- Dotted arrows indicate callback/data flow (AnnotationFSM emits transitions via onTransition callback; ViewModel publishes state changes via @Published properties)
+
 ---
 
 ## 4. Binary File Format (BlazeBinary Layout)
