@@ -1,64 +1,85 @@
-# DocumentApp: Research Document Annotation Platform
+# documentExampleApp
 
-## Overview
+### A Document-Based SwiftUI Editor Powered by BlazeFSM and BlazeBinary
 
-DocumentApp is a macOS and iOS application designed for research-oriented document annotation and analysis. The platform provides a sophisticated document editing environment with persistent state management, deterministic binary serialization, and event-driven annotation workflows.
+`documentExampleApp` is a macOS and iOS SwiftUI document application that demonstrates a production-quality document editor architecture. The app showcases BlazeFSM for event-driven finite state machines, BlazeBinary for deterministic binary document serialization, and a replay-based annotation system with comprehensive tool support and state transition management.
 
-## Architecture
+## Features
 
-### Core Technologies
+- **Document-Based SwiftUI App**: Native DocumentGroup integration with autosave, multi-window support, and system file coordination
+- **Annotation System**: Complete annotation lifecycle management with create, move, resize, edit, and delete operations
+- **Tool System**: Comprehensive tool palette including pen, pencil, highlighter, text, arrow, selection, eraser, and lasso tools
+- **Replay-Driven State Management**: Transition log architecture enabling undo/redo capabilities and state reconstruction
+- **BlazeBinary File Format**: Deterministic binary serialization with `.bnbk` file extension for efficient, reproducible document storage
 
-**BlazeBinary Serialization**
-- Deterministic binary encoding for document persistence
-- Type-Length-Value (TLV) format with field order preservation
-- Zero-copy decoding where possible
-- Schema evolution support for forward compatibility
+## High-Level Architecture
 
-**BlazeFSM State Management**
-- Event-driven finite state machines for annotation workflows
-- Transition-based state persistence
-- Ephemeral tool state management
-- Replay-based state reconstruction
+The application architecture follows an event-driven pipeline where user interactions flow through state machines, generate transition records, and drive reactive UI updates.
 
-**SwiftUI Document Architecture**
-- Native FileDocument protocol integration
-- Custom Uniform Type Identifier (UTI) for notebook documents
-- Automatic save/load coordination with state machines
+```mermaid
+flowchart LR
+    UI[SwiftUI Editor] --> VM[NotebookEditorViewModel]
+    VM --> ToolFSM[ToolFSM]
+    VM --> EventGen[Gesture / Event Router]
+    EventGen --> AnnotationFSM[AnnotationFSM]
+    AnnotationFSM --> Log[Transition Log]
+    Log --> Reducer[Reducer]
+    Reducer --> VM
+    VM --> UI
+    
+    style UI fill:#e1f5ff
+    style VM fill:#fff4e1
+    style ToolFSM fill:#e8f5e9
+    style AnnotationFSM fill:#e8f5e9
+    style Log fill:#f3e5f5
+    style Reducer fill:#f3e5f5
+    style EventGen fill:#fff4e1
+```
 
-### Document Format
+**Architecture Components:**
+- **SwiftUI Editor**: Reactive view layer that responds to published state changes
+- **NotebookEditorViewModel**: Central coordinator managing tool and annotation state machines
+- **ToolFSM**: Ephemeral state machine managing current tool selection
+- **Event Router**: Converts user gestures into annotation events
+- **AnnotationFSM**: Validates and processes annotation state transitions
+- **Transition Log**: Accumulates all state transitions for persistence and replay
+- **Reducer**: Applies transitions to update annotation models
 
-Notebook documents (`.blaze-note`) store:
+## Binary File Format (BlazeBinary Layout)
 
-1. **Metadata**
-   - Document title
-   - Creation timestamp (UInt64 epoch seconds)
-   - Last modification timestamp
+The notebook document format uses deterministic sequential encoding with strict field ordering. All encoding uses BlazeBinary; no Codable or JSON is used. Encoding is deterministic and sequential.
 
-2. **Annotation State Transitions**
-   - Complete history of annotation state changes
-   - Event-driven transition records
-   - Replayable state reconstruction
+```mermaid
+flowchart LR
+    A["Magic Bytes<br/>'BNBK'<br/>(4 bytes)"] --> B["Version<br/>UInt8<br/>(1 byte)"]
+    B --> C["Metadata Block"]
+    C --> D["Title<br/>String<br/>(varint length + UTF-8)"]
+    D --> E["CreatedAt<br/>UInt64<br/>(8 bytes, epoch seconds)"]
+    E --> F["UpdatedAt<br/>UInt64<br/>(8 bytes, epoch seconds)"]
+    F --> G["Transition Count<br/>Varint<br/>(LEB128)"]
+    G --> H["Transition Stream<br/>AnnotationStateTransition[]"]
+    H --> I["Initial Tool State<br/>EditorToolState<br/>(String rawValue)"]
+    
+    style A fill:#e1f5ff
+    style B fill:#e1f5ff
+    style C fill:#fff4e1
+    style D fill:#fff4e1
+    style E fill:#fff4e1
+    style F fill:#fff4e1
+    style G fill:#e8f5e9
+    style H fill:#e8f5e9
+    style I fill:#f3e5f5
+```
 
-3. **Editor Tool State**
-   - Current tool selection
-   - Tool-specific context
+**Format Characteristics:**
+- All encoding uses BlazeBinary deterministic serialization
+- No Codable or JSON is used anywhere in the file format
+- Encoding is deterministic and sequential (strict field order)
+- Cross-platform stability via little-endian integers and UTF-8 strings
 
-### State Machine Architecture
+## Annotation State Machine
 
-**AnnotationFSM**
-- Manages annotation lifecycle states (idle, selected, editing, moving, resizing, creating, committed, deleted)
-- Validates state transitions
-- Emits transition records for persistence
-- Supports multiple annotation instances
-
-**ToolFSM**
-- Manages editor tool selection (idle, selection, pen, pencil, highlighter, text, arrow, eraser, lasso)
-- Ephemeral state (not persisted)
-- Influences annotation event dispatch
-
-### Annotation State Machine
-
-The annotation lifecycle is governed by a finite state machine that ensures valid state transitions and prevents invalid annotation operations. All transitions are validated and recorded for persistence.
+The annotation lifecycle is governed by a finite state machine that ensures valid state transitions and prevents invalid annotation operations. Each annotation has its own AnnotationFSM instance, and the app layer manages multiple FSMs via an annotation manager.
 
 ```mermaid
 stateDiagram-v2
@@ -113,78 +134,9 @@ stateDiagram-v2
 - **committed**: Annotation is finalized and persisted
 - **deleted**: Annotation is marked for removal (terminal state)
 
-## Features
+## Data Flow
 
-### Document Management
-- Create new annotation notebooks
-- Open existing notebooks
-- Save with automatic timestamp updates
-- Binary format for efficient storage
-
-### Annotation System
-- Multiple annotation types supported
-- State-based annotation lifecycle management
-- Transition history for undo/redo capabilities
-- Event-driven annotation workflows
-
-### Serialization
-- Deterministic binary encoding
-- Field order preservation
-- Schema evolution support
-- Efficient storage format
-
-## Technical Specifications
-
-### Binary File Format (BlazeBinary Layout)
-
-The notebook document format uses deterministic sequential encoding with strict field ordering. This ensures cross-platform stability, forward compatibility, and reproducible file output.
-
-```mermaid
-flowchart LR
-    A["Magic Bytes<br/>'BNBK'<br/>(4 bytes)"] --> B["Version<br/>UInt8<br/>(1 byte)"]
-    B --> C["Metadata Block"]
-    C --> D["Title<br/>String<br/>(varint length + UTF-8)"]
-    D --> E["CreatedAt<br/>UInt64<br/>(8 bytes, epoch seconds)"]
-    E --> F["UpdatedAt<br/>UInt64<br/>(8 bytes, epoch seconds)"]
-    F --> G["Transition Count<br/>Varint<br/>(LEB128)"]
-    G --> H["Transition Stream<br/>AnnotationStateTransition[]"]
-    H --> I["Initial Tool State<br/>EditorToolState<br/>(String rawValue)"]
-    
-    style A fill:#e1f5ff
-    style B fill:#e1f5ff
-    style C fill:#fff4e1
-    style D fill:#fff4e1
-    style E fill:#fff4e1
-    style F fill:#fff4e1
-    style G fill:#e8f5e9
-    style H fill:#e8f5e9
-    style I fill:#f3e5f5
-```
-
-**Format Characteristics:**
-- **Deterministic Order**: Fields are encoded in strict sequential order (metadata → transitions → tool state)
-- **Forward Compatibility**: Version field enables format evolution without breaking existing documents
-- **Sequential BlazeBinary Encoding**: All fields use BlazeBinary's deterministic encoding rules
-- **Cross-Platform Stability**: Little-endian integers and UTF-8 strings ensure consistent behavior across architectures
-
-### File Format
-
-**NotebookDocument Format**
-- Magic identifier: Custom UTI `com.danylchuk.notebook.bnbk`
-- Encoding: BlazeBinary (deterministic binary)
-- Field order: metadata, transitions array, initial tool state
-- Version: Format version 1
-
-**Encoding Rules**
-- Strings: UTF-8 with varint length prefix
-- Integers: Little-endian fixed-width (UInt32, UInt64) or varint (Int)
-- Floating point: Double bit pattern as UInt64
-- Arrays: Varint count prefix followed by elements
-- Optionals: Boolean flag followed by value if present
-
-### Notebook Editor Data Flow
-
-The editor architecture follows an event-driven pipeline that mirrors high-end document editing applications (Figma, Notability, Adobe Acrobat). User gestures are interpreted by tool state machines, converted to annotation events, processed through annotation state machines, and result in state transitions that drive UI updates.
+The editor follows an event-driven data flow where user gestures are interpreted, converted to events, processed through state machines, and result in state updates that drive UI rerendering.
 
 ```mermaid
 sequenceDiagram
@@ -193,40 +145,86 @@ sequenceDiagram
     participant ToolFSM as ToolFSM
     participant AnnotationFSM as AnnotationFSM
     participant TransitionLog as Transition Log
-    participant State as Published State
+    participant Reducer as Reducer
     
-    View->>ViewModel: User gesture/input
-    ViewModel->>ToolFSM: Interpret gesture context
-    ToolFSM-->>ViewModel: Current tool state
-    ViewModel->>AnnotationFSM: processEvent(AnnotationEvent)
-    AnnotationFSM->>AnnotationFSM: Validate transition
-    AnnotationFSM->>AnnotationFSM: Update state
-    AnnotationFSM-->>TransitionLog: Emit AnnotationStateTransition
-    TransitionLog->>ViewModel: Accumulate transition
-    ViewModel->>ViewModel: Update annotation models
-    ViewModel-->>State: Publish @Published annotations
-    State-->>View: Trigger SwiftUI rerender
+    View->>ViewModel: gesture(event)
+    ViewModel->>ToolFSM: interpret
+    ToolFSM-->>ViewModel: AnnotationEvent?
+    ViewModel->>AnnotationFSM: processEvent()
+    AnnotationFSM-->>TransitionLog: record transition
+    TransitionLog-->>Reducer: apply transition
+    Reducer-->>ViewModel: updated annotations
+    ViewModel-->>View: rerender
 ```
 
-**Architecture Notes:**
-- **Event-Driven Pipeline**: All user interactions flow through state machines as events
+**Flow Characteristics:**
+- **Event-Driven**: All user interactions flow through state machines as events
 - **Transition Logging**: Every state change is recorded for persistence and undo/redo
 - **Reactive Updates**: SwiftUI automatically rerenders when published state changes
 - **Separation of Concerns**: Tool selection (ephemeral) is separate from annotation state (persistent)
 
-### State Machine Integration
+## Components
 
-**Transition Replay**
-1. Load document transitions from binary format
-2. Initialize AnnotationFSM instances
-3. Replay transitions in chronological order
-4. Reconstruct annotation states
+### NotebookDocument
 
-**State Persistence**
-1. Capture transitions via AnnotationFSM callbacks
-2. Accumulate transitions during editing session
-3. Encode transitions array on document save
-4. Store current tool state for restoration
+The `NotebookDocument` struct conforms to SwiftUI's `FileDocument` protocol and uses BlazeBinary for load/save operations. It stores:
+- **Metadata**: Document title, creation timestamp, last modification timestamp
+- **Transitions**: Complete array of `AnnotationStateTransition` records
+- **Tool State**: Initial `EditorToolState` for restoration
+
+The document format is deterministic and uses sequential BlazeBinary encoding with no Codable or JSON dependencies.
+
+### NotebookEditorViewModel
+
+The `NotebookEditorViewModel` is the central coordinator that:
+- Owns `ToolFSM` for ephemeral tool state management
+- Manages per-annotation `AnnotationFSM` instances via an annotation manager
+- Publishes annotation models as `@Published` properties for SwiftUI binding
+- Accumulates transitions during editing sessions
+- Replays transitions on document load to reconstruct annotation states
+
+### BlazeFSM + BlazeBinary Extensions
+
+`AnnotationStateTransition` and `EditorToolState` conform to `BlazeBinaryCodable` via extensions in `BlazeFSM+BlazeBinary.swift`. These extensions add BlazeBinary serialization support to imported BlazeFSM types.
+
+**Note**: Swift compiler warnings about extending imported types with protocol conformances are expected and safe. These warnings inform us that if BlazeFSM adds native BlazeBinaryCodable support in the future, we should remove these extensions to avoid conflicts.
+
+## Example Usage
+
+A minimal SwiftUI example demonstrating documentExampleApp integration:
+
+```swift
+@main
+struct documentExampleApp: App {
+    var body: some Scene {
+        DocumentGroup(newDocument: NotebookDocument()) { file in
+            NotebookEditorView(document: file.$document)
+        }
+    }
+}
+```
+
+The `NotebookEditorView` binds to the document and uses `NotebookEditorViewModel` to manage annotation state and tool selection. The view model automatically handles transition logging and state persistence.
+
+## Limitations
+
+Current implementation limitations:
+
+- **PDF Rendering**: PDF rendering not yet integrated (annotations over a blank canvas only)
+- **Undo/Redo UI**: Undo/redo UI not wired, although the transition log engine supports it
+- **Rendering Pipeline**: Rendering pipeline (hit-testing, handles, smoothing) is minimal
+- **Multi-Annotation Management**: Multi-annotation management exists at the engine level but is only partially wired into the UI
+
+## Roadmap
+
+Planned enhancements:
+
+- **PDFKit Integration**: PDFKit integration as document background
+- **Rich Selection/Transform Handles**: Visual selection and transformation handles for annotations
+- **Stroke Smoothing and Layering**: Advanced rendering with stroke smoothing and layer management
+- **BlazeDB Integration**: Optional BlazeDB integration for indexing and search capabilities
+- **Undo/Redo UI**: Complete undo/redo user interface implementation
+- **Multi-Window Coordination**: Enhanced multi-window document coordination
 
 ## Development
 
@@ -264,102 +262,6 @@ DocumentApp/
 └── DocumentAppApp.swift                 # Application entry point
 ```
 
-### Dependencies
-
-**BlazeBinary**
-- Deterministic binary serialization framework
-- Provides BlazeBinaryEncoder and BlazeBinaryDecoder
-- Protocol: BlazeBinaryCodable
-
-**BlazeFSM**
-- Finite state machine framework
-- Provides AnnotationFSM and ToolFSM
-- Event-driven state transitions
-
-## Usage
-
-### Creating Documents
-
-1. Launch DocumentApp
-2. File > New (or Cmd+N)
-3. Document opens with default empty state
-4. Begin annotation workflow
-
-### Annotating Documents
-
-1. Select annotation tool from toolbar
-2. Create annotations using selected tool
-3. State transitions are automatically recorded
-4. Save document to persist annotation history
-
-### Opening Documents
-
-1. File > Open (or Cmd+O)
-2. Select `.blaze-note` file
-3. Document loads and replays annotation transitions
-4. Annotation states are reconstructed from history
-
-### Saving Documents
-
-1. File > Save (or Cmd+S)
-2. Metadata timestamps are automatically updated
-3. All annotation transitions are encoded to binary format
-4. Current tool state is preserved
-
-## File Format Specification
-
-### Binary Layout
-
-```
-NotebookFileData:
-  - metadata: NotebookMetadata
-  - transitions: [AnnotationStateTransition]
-  - initialTool: EditorToolState
-
-NotebookMetadata:
-  - title: String (UTF-8, varint length prefix)
-  - createdAt: UInt64 (little-endian, epoch seconds)
-  - updatedAt: UInt64 (little-endian, epoch seconds)
-
-AnnotationStateTransition:
-  - annotationID: UUID (as String)
-  - from: AnnotationState (as String rawValue)
-  - to: AnnotationState (as String rawValue)
-  - event: AnnotationEvent (discriminated union)
-  - timestamp: UInt64 (epoch seconds)
-  - payload: Data? (optional, boolean flag + data if present)
-```
-
-### Field Encoding Order
-
-Fields are encoded in strict order to ensure deterministic output:
-1. Metadata (title, createdAt, updatedAt)
-2. Transitions array (count, then each transition)
-3. Initial tool state
-
-## Research Applications
-
-This platform is designed for research scenarios requiring:
-
-- **Reproducible Annotation Workflows**: Complete transition history enables replay and analysis
-- **Deterministic Serialization**: Binary format ensures consistent file output
-- **State Machine Validation**: Formal state transitions prevent invalid annotation states
-- **Efficient Storage**: Binary format minimizes file size while preserving complete history
-
-## Limitations
-
-- PDF document embedding not yet implemented (annotation state only)
-- Single annotation FSM instance per document (multiple annotations require multiple FSMs)
-- Tool state is ephemeral (not persisted between sessions)
-
-## Future Enhancements
-
-- PDF document embedding and rendering
-- Multi-annotation FSM management
-- Tool state persistence
-- Collaborative annotation features
-- Export to standard annotation formats
-
 ## License
 
 Copyright (c) 2025 Danylchuk Studios LLC. All rights reserved.
@@ -367,12 +269,7 @@ Copyright (c) 2025 Danylchuk Studios LLC. All rights reserved.
 ## Acknowledgments
 
 Built using:
-- BlazeBinary: Deterministic binary serialization framework
-- BlazeFSM: Event-driven finite state machine framework
-- SwiftUI: Native UI framework
-- UniformTypeIdentifiers: File type system integration
-
-## Contact
-
-For research collaboration inquiries or technical questions, please refer to the project maintainers.
-
+- **BlazeBinary**: Deterministic binary serialization framework
+- **BlazeFSM**: Event-driven finite state machine framework
+- **SwiftUI**: Native UI framework
+- **UniformTypeIdentifiers**: File type system integration
