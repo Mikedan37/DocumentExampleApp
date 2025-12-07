@@ -32,23 +32,53 @@ This architecture simplifies persistence, enables robust undo/redo semantics, an
 
 ### BlazeFSM
 
-A minimal, strongly typed finite state machine framework used to model annotation lifecycles and tool interactions.
+**Used throughout the application for all state management.**
+
+A minimal, strongly typed finite state machine framework that models:
+- **Annotation lifecycles**: Each annotation has its own `AnnotationFSM` instance managing states (idle, creating, selected, editing, moving, resizing, committed, deleted)
+- **Tool interactions**: `ToolFSM` manages editor tool state (idle, selection, pen, pencil, highlighter, text, arrow, eraser, lasso)
+- **State transitions**: All state changes flow through FSM validation, ensuring correctness and enabling replay-based persistence
+
+**Key Usage:**
+- `NotebookEditorViewModel` creates and manages multiple `AnnotationFSM` instances (one per annotation)
+- `ToolFSM` coordinates tool selection and switching
+- All annotation events (create, select, move, edit, delete) are processed through FSM `processEvent()` methods
+- Transition callbacks emit `AnnotationStateTransition` records for persistence
 
 ### BlazeBinary
 
+**Used for all serialization and persistence - no Codable or JSON.**
+
 A low-level binary encoding system optimized for deterministic field ordering, forward compatibility, and efficient decoding.
+
+**Key Usage:**
+- **Document serialization**: `NotebookFileData`, `NotebookMetadata` conform to `BlazeBinaryCodable`
+- **FSM type encoding**: All FSM types (`AnnotationStateTransition`, `AnnotationEvent`, `EditorToolState`, `AnnotationState`, etc.) are encoded/decoded using BlazeBinary
+- **Deterministic format**: Field order is strictly preserved, ensuring identical input produces identical binary output
+- **No external formats**: The application uses BlazeBinary exclusively - no JSON, no Codable, no PropertyList
+
+**BlazeBinaryCodable Conformance:**
+- `NotebookFileData` - root document structure
+- `NotebookMetadata` - document metadata
+- `AnnotationStateTransition` - state change records
+- `AnnotationEvent` - all annotation events
+- `EditorToolState` - tool state enum
+- `AnnotationState` - annotation state enum
+- `AnnotationCreatePayload` - annotation creation data
+- `AnnotationEditPayload` - annotation edit data
+- `ResizeAnchor`, `ResizeDelta` - resize operation data
 
 ### documentExampleApp Document Model
 
-The application persists three primary elements:
+The application persists three primary elements using BlazeBinary:
 
-1. Metadata (title, timestamps)  
+1. Metadata (title, timestamps) - encoded as `NotebookMetadata`  
 
-2. Transition log (ordered sequence of AnnotationStateTransition)  
+2. Transition log (ordered sequence of `AnnotationStateTransition`) - all state changes from BlazeFSM  
 
-3. Initial tool state  
+3. Initial tool state (`EditorToolState`) - from `ToolFSM`  
 
-These components fully define the document.
+These components fully define the document. On load, transitions are replayed through FSM instances to reconstruct state.
 
 ---
 
@@ -104,17 +134,12 @@ flowchart LR
 
 **Format Characteristics**
 
-- Deterministic sequential encoding (metadata → transitions → tool state)
-
-- No Codable or JSON - pure BlazeBinary encoding
-
-- Arrays encoded as varint count prefix followed by elements
-
-- Strings encoded as varint length prefix followed by UTF-8 bytes
-
-- Fixed-width integers use little-endian byte order
-
-- Efficient replay for restoration via transition log
+- **Pure BlazeBinary**: No Codable, no JSON, no PropertyList - all serialization uses BlazeBinary
+- **Deterministic sequential encoding**: Metadata → transitions → tool state (field order is strictly preserved)
+- **FSM-driven persistence**: All transitions come from BlazeFSM `onTransition` callbacks
+- **BlazeBinary primitives**: Arrays use varint count prefix, strings use varint length + UTF-8, integers use little-endian
+- **Replay-based restoration**: Transitions are replayed through FSM instances to reconstruct state
+- **Forward compatible**: BlazeBinary format supports adding fields without breaking existing documents
 
 ---
 
@@ -192,17 +217,32 @@ sequenceDiagram
 
 **NotebookDocument**
 
-A SwiftUI FileDocument implementation responsible for encoding and decoding document state using BlazeBinary.
+A SwiftUI `FileDocument` implementation responsible for encoding and decoding document state using **BlazeBinary**. Uses `BlazeBinaryNotebookCoder` to serialize/deserialize `NotebookFileData` to/from binary `Data`.
 
 **NotebookEditorViewModel**
 
-Coordinates tool interactions, annotation FSM instances, transition replay, and rendering updates.
+Coordinates tool interactions, manages multiple `AnnotationFSM` instances (one per annotation), handles `ToolFSM` for tool state, replays transitions on load, and accumulates new transitions for persistence. All state changes flow through FSM validation.
 
-**FSM Extensions**
+**BlazeFSM+BlazeBinary Extensions**
 
-Adds BlazeBinaryCodable conformance to FSM types.
+Adds `BlazeBinaryCodable` conformance to all BlazeFSM types:
+- `EditorToolState` - tool state enum encoding
+- `AnnotationState` - annotation state enum encoding  
+- `AnnotationEvent` - all event types with payload encoding
+- `AnnotationStateTransition` - transition record encoding
+- `AnnotationCreatePayload` - creation payload encoding
+- `AnnotationEditPayload` - edit payload encoding
+- `ResizeAnchor`, `ResizeDelta` - resize operation encoding
 
-External conformance warnings are expected and safe.
+External conformance warnings are expected and safe - these are extensions on imported types.
+
+**BlazeBinaryNotebookCoder**
+
+Static encoder/decoder using `BlazeBinaryEncoder` and `BlazeBinaryDecoder` for converting `NotebookFileData` to/from `Data`. Ensures deterministic binary layout.
+
+**NotebookFileData & NotebookMetadata**
+
+Root document structures conforming to `BlazeBinaryCodable`. All fields are encoded sequentially using BlazeBinary primitives (no Codable, no JSON).
 
 ---
 
@@ -276,6 +316,14 @@ MIT License.
 
 ## Summary
 
-documentExampleApp demonstrates how deterministic state machines, binary document formats, and declarative UI composition form a reliable foundation for building advanced editors on Apple platforms.
+documentExampleApp demonstrates how **BlazeFSM** and **BlazeBinary** form the foundation for building reliable, deterministic document editors on Apple platforms.
 
-The architectural principles prioritize correctness, reproducibility, and extensibility, enabling future expansion into sophisticated creative and productivity workflows.
+**Key Architectural Principles:**
+
+- **BlazeFSM everywhere**: All state management flows through FSM instances - annotations, tools, and interactions
+- **BlazeBinary for persistence**: All serialization uses BlazeBinary - no Codable, no JSON, no external formats
+- **Replay-based restoration**: Documents store transition logs that are replayed through FSM instances on load
+- **Deterministic behavior**: Same input always produces same output, enabling reliable undo/redo and state reconstruction
+- **Type safety**: Strong typing through FSM state enums and BlazeBinary encoding ensures correctness
+
+The architecture prioritizes correctness, reproducibility, and extensibility, enabling future expansion into sophisticated creative and productivity workflows while maintaining a clean separation between state management (BlazeFSM) and persistence (BlazeBinary).

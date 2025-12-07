@@ -49,15 +49,15 @@ import BlazeFSM
 // The following extensions add BlazeBinaryCodable conformance to imported BlazeFSM types.
 // Swift will emit warnings about extending imported types - these are EXPECTED and documented.
 //
-// ⚠️  WARNING SUPPRESSION NOTE:
+// WARNING SUPPRESSION NOTE:
 // These specific warnings cannot be suppressed via compiler flags in Swift.
 // They are informational warnings about potential future conflicts if BlazeFSM adds
 // native BlazeBinaryCodable support. The warnings are SAFE TO IGNORE because:
 //
-// 1. ✅ We control the implementation in our module
-// 2. ✅ BlazeFSM doesn't currently provide BlazeBinaryCodable conformance  
-// 3. ✅ If BlazeFSM adds native support, we'll remove these extensions (as documented)
-// 4. ✅ The warnings do NOT affect functionality or compilation
+// 1. We control the implementation in our module
+// 2. BlazeFSM doesn't currently provide BlazeBinaryCodable conformance
+// 3. If BlazeFSM adds native support, we'll remove these extensions (as documented)
+// 4. The warnings do NOT affect functionality or compilation
 //
 // These warnings serve as a reminder to check for native BlazeFSM support when updating dependencies.
 // They can be filtered from build output or ignored during development.
@@ -137,24 +137,20 @@ extension ResizeDelta: BlazeBinaryCodable {
 
 extension AnnotationEditPayload: BlazeBinaryCodable {
     public func blazeEncode(to encoder: BlazeBinaryEncoder) throws {
-        // Encode optional content
+        // Encode optional content - use explicit Bool encoding
+        encoder.encode(content != nil)
         if let content = content {
-            encoder.encode(true)
             encoder.encode(content)
-        } else {
-            encoder.encode(false)
         }
         
-        // Encode optional properties dictionary
+        // Encode optional properties dictionary - use explicit Bool encoding
+        encoder.encode(properties != nil)
         if let properties = properties {
-            encoder.encode(true)
             encoder.encode(UInt64(properties.count))
             for (key, value) in properties.sorted(by: { $0.key < $1.key }) {
                 encoder.encode(key)
                 encoder.encode(value)
             }
-        } else {
-            encoder.encode(false)
         }
     }
     
@@ -190,22 +186,20 @@ extension AnnotationCreatePayload: BlazeBinaryCodable {
         encoder.encode(Double(bounds.size.width).bitPattern)
         encoder.encode(Double(bounds.size.height).bitPattern)
         
+        // Encode optional initialContent - use explicit Bool encoding
+        encoder.encode(initialContent != nil)
         if let initialContent = initialContent {
-            encoder.encode(true)
             encoder.encode(initialContent)
-        } else {
-            encoder.encode(false)
         }
         
+        // Encode optional properties - use explicit Bool encoding
+        encoder.encode(properties != nil)
         if let properties = properties {
-            encoder.encode(true)
             encoder.encode(UInt64(properties.count))
             for (key, value) in properties.sorted(by: { $0.key < $1.key }) {
                 encoder.encode(key)
                 encoder.encode(value)
             }
-        } else {
-            encoder.encode(false)
         }
     }
     
@@ -298,6 +292,16 @@ extension AnnotationEvent: BlazeBinaryCodable {
         case .createAnnotation(let payload):
             encoder.encode("createAnnotation")
             try encoder.encode(payload)
+            
+        case .updateStroke(let annotationID, let point):
+            encoder.encode("updateStroke")
+            encoder.encode(annotationID.uuidString)
+            encoder.encode(Double(point.x).bitPattern)
+            encoder.encode(Double(point.y).bitPattern)
+            
+        case .finishCreate(let annotationID):
+            encoder.encode("finishCreate")
+            encoder.encode(annotationID.uuidString)
         }
     }
     
@@ -391,6 +395,24 @@ extension AnnotationEvent: BlazeBinaryCodable {
         case "createAnnotation":
             let payload = try decoder.decode(AnnotationCreatePayload.self)
             self = .createAnnotation(payload: payload)
+            
+        case "updateStroke":
+            let uuidString = try decoder.decodeString()
+            guard let annotationID = UUID(uuidString: uuidString) else {
+                throw BlazeBinaryError.decodeFailed("Invalid UUID: \(uuidString)")
+            }
+            let xBits = try decoder.decodeUInt64()
+            let yBits = try decoder.decodeUInt64()
+            let x = CGFloat(Double(bitPattern: xBits))
+            let y = CGFloat(Double(bitPattern: yBits))
+            self = .updateStroke(annotationID: annotationID, point: CGPoint(x: x, y: y))
+            
+        case "finishCreate":
+            let uuidString = try decoder.decodeString()
+            guard let annotationID = UUID(uuidString: uuidString) else {
+                throw BlazeBinaryError.decodeFailed("Invalid UUID: \(uuidString)")
+            }
+            self = .finishCreate(annotationID: annotationID)
             
         default:
             throw BlazeBinaryError.decodeFailed("Unknown AnnotationEvent case: \(caseName)")
