@@ -84,15 +84,15 @@ flowchart LR
 
 flowchart LR
 
-    A[Magic Bytes "BNBK"] --> B[Version (UInt8)]
+    A["Magic Bytes BNBK"] --> B["Version UInt8"]
 
-    B --> C[Metadata Block]
+    B --> C["Metadata Block"]
 
-    C --> D[Transition Count (UInt32)]
+    C --> D["Transition Count UInt32"]
 
-    D --> E[Transition Stream (AnnotationStateTransition[])]
+    D --> E["Transition Stream AnnotationStateTransition[]"]
 
-    E --> F[Initial Tool State]
+    E --> F["Initial Tool State"]
 
 ```
 
